@@ -60,7 +60,31 @@ const login = async (req, res) => {
   }
 };
 
+const searchUsers = async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query || query.trim().length < 2) {
+      return res.status(200).json([]);
+    }
+
+    const users = await User.find({
+      $or: [
+        { name: { $regex: query, $options: "i" } },
+        { email: { $regex: query, $options: "i" } },
+      ],
+    })
+      .select("name email")
+      .limit(10);
+
+    return res.status(200).json(users);
+  } catch (error) {
+    return res.status(500).json({ message: "Search failed", error: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
+  searchUsers,
 };
+

@@ -17,7 +17,7 @@ const isProjectMember = async (projectId, userId) => {
 
 const createTask = async (req, res) => {
   try {
-    const { title, description, assignedTo, status, deadline, priority, projectId } = req.body;
+    const { title, description, assignedTo, status, deadline, priority, projectId, tags, subtasks } = req.body;
 
     if (!title || !projectId) {
       return res.status(400).json({ message: "Title and projectId are required" });
@@ -37,9 +37,13 @@ const createTask = async (req, res) => {
       priority: priority || "Medium",
       projectId,
       createdBy: req.user.id,
+      tags: tags || [],
+      subtasks: subtasks || [],
     });
 
-    const populatedTask = await Task.findById(task._id).populate("assignedTo", "name email");
+    const populatedTask = await Task.findById(task._id)
+      .populate("assignedTo", "name email")
+      .populate("comments.user", "name email");
 
     const io = req.app.get("io");
     io.to(projectId).emit("task-created", populatedTask);
@@ -61,6 +65,7 @@ const getProjectTasks = async (req, res) => {
 
     const tasks = await Task.find({ projectId })
       .populate("assignedTo", "name email")
+      .populate("comments.user", "name email")
       .sort({ createdAt: -1 });
 
     return res.status(200).json(tasks);
@@ -86,7 +91,9 @@ const updateTask = async (req, res) => {
     Object.assign(task, req.body);
     await task.save();
 
-    const populatedTask = await Task.findById(task._id).populate("assignedTo", "name email");
+    const populatedTask = await Task.findById(task._id)
+      .populate("assignedTo", "name email")
+      .populate("comments.user", "name email");
     const io = req.app.get("io");
 
     io.to(String(task.projectId)).emit("task-updated", populatedTask);
@@ -101,6 +108,43 @@ const updateTask = async (req, res) => {
     return res.status(200).json(populatedTask);
   } catch (error) {
     return res.status(500).json({ message: "Failed to update task", error: error.message });
+  }
+};
+
+const addTaskComment = async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: "Comment text is required" });
+    }
+
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    const permission = await isProjectMember(task.projectId, req.user.id);
+    if (!permission.allowed) {
+      return res.status(permission.reason === "Project not found" ? 404 : 403).json({ message: permission.reason });
+    }
+
+    task.comments.push({
+      user: req.user.id,
+      text: text.trim(),
+    });
+
+    await task.save();
+
+    const populatedTask = await Task.findById(task._id)
+      .populate("assignedTo", "name email")
+      .populate("comments.user", "name email");
+
+    const io = req.app.get("io");
+    io.to(String(task.projectId)).emit("task-updated", populatedTask);
+
+    return res.status(200).json(populatedTask);
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to add comment", error: error.message });
   }
 };
 
@@ -134,5 +178,7 @@ module.exports = {
   createTask,
   getProjectTasks,
   updateTask,
+  addTaskComment,
   deleteTask,
 };
+

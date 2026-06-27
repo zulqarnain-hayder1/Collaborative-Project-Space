@@ -41,6 +41,25 @@ const taskSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    subtasks: [
+      {
+        title: { type: String, required: true, trim: true },
+        isCompleted: { type: Boolean, default: false },
+      },
+    ],
+    comments: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        text: { type: String, required: true, trim: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );
