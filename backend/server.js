@@ -10,6 +10,12 @@ const taskRoutes = require("./routes/taskRoutes");
 const socketHandler = require("./socket/socketHandler");
 
 dotenv.config();
+
+if (!process.env.JWT_SECRET) {
+  console.warn("Warning: JWT_SECRET is not defined. Using development JWT secret.");
+  process.env.JWT_SECRET = "dev_jwt_secret";
+}
+
 connectDB();
 
 const app = express();
